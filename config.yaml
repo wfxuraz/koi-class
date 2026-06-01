@@ -1,0 +1,15 @@
+data_dir: data
+backbone: efficientnetv2_rw_s   # Apache-2.0 timm weights; fallback: mobilenetv3_large_100
+image_size: 224
+batch_size: 32
+epochs: 20
+lr: 0.0003
+weight_decay: 0.0001
+label_smoothing: 0.1
+val_split: 0.2
+seed: 42
+num_workers: 4
+patience: 5                     # early-stopping epochs without val-acc improvement
+output_dir: runs
+top_k: 0                        # 0 = show all classes; N>0 = show top N
+min_prob: 0.0                   # only show classes with prob >= this (0.0 = no filter)
