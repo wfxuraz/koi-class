@@ -65,5 +65,21 @@ def main() -> None:
         print(format_predictions(ranked))
 
 
+def predict_image_onnx(image_path, onnx_path, classes_path, image_size: int,
+                       top_k: int = 0, min_prob: float = 0.0):
+    import numpy as np
+    import onnxruntime as ort
+
+    classes = load_classes(classes_path)
+    tf = build_transforms(image_size, train=False)
+    with Image.open(image_path) as img:
+        tensor = tf(img.convert("RGB")).unsqueeze(0).numpy()
+    sess = ort.InferenceSession(str(onnx_path), providers=["CPUExecutionProvider"])
+    logits = sess.run(None, {sess.get_inputs()[0].name: tensor})[0][0]
+    exp = np.exp(logits - logits.max())
+    probs = (exp / exp.sum()).tolist()
+    return rank_predictions(probs, classes, top_k, min_prob)
+
+
 if __name__ == "__main__":
     main()
