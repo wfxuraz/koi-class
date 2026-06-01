@@ -17,7 +17,7 @@ def _list_samples(data_dir, classes) -> list[tuple[str, int]]:
     root = Path(data_dir)
     samples: list[tuple[str, int]] = []
     for idx, cls in enumerate(classes):
-        for p in (root / cls).iterdir():
+        for p in sorted((root / cls).iterdir()):
             if p.suffix.lower() in IMG_EXTS:
                 samples.append((str(p), idx))
     if not samples:
