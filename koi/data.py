@@ -1,6 +1,11 @@
+import json
 from pathlib import Path
 
+import torch
+from PIL import Image
 from sklearn.model_selection import train_test_split
+from torch.utils.data import Dataset
+from torchvision import transforms
 
 IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
@@ -36,13 +41,6 @@ def stratified_split(data_dir, classes, val_split: float, seed: int):
     val = list(zip(val_p, val_l))
     return train, val
 
-
-import json
-
-import torch
-from PIL import Image
-from torch.utils.data import Dataset
-from torchvision import transforms
 
 _MEAN = (0.485, 0.456, 0.406)
 _STD = (0.229, 0.224, 0.225)
