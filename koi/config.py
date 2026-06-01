@@ -1,5 +1,6 @@
 from dataclasses import dataclass, fields
 from pathlib import Path
+from typing import Union
 
 import yaml
 
@@ -41,8 +42,13 @@ class Config:
     min_prob: float
 
 
-def load_config(path) -> Config:
-    raw = yaml.safe_load(Path(path).read_text()) or {}
+assert set(_DEFAULTS) == {f.name for f in fields(Config)}, (
+    "_DEFAULTS keys must match Config fields"
+)
+
+
+def load_config(path: Union[str, Path]) -> Config:
+    raw = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
     merged = {**_DEFAULTS, **raw}
     allowed = {f.name for f in fields(Config)}
     merged = {k: v for k, v in merged.items() if k in allowed}

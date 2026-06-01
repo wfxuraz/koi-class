@@ -37,3 +37,12 @@ def test_load_config_rejects_bad_val_split(tmp_path: Path):
         assert False, "expected ValueError"
     except ValueError:
         pass
+
+
+def test_load_config_applies_defaults_for_missing_fields(tmp_path: Path):
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text("data_dir: only_this\n")
+    cfg = load_config(cfg_file)
+    assert cfg.data_dir == "only_this"
+    assert cfg.backbone == "efficientnetv2_rw_s"  # default
+    assert cfg.image_size == 224                   # default
