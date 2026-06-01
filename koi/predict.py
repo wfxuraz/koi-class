@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 
 import torch
+from PIL import Image
 
 from koi.config import load_config
 from koi.data import build_transforms, load_classes
@@ -36,7 +37,6 @@ def predict_image(image_path, checkpoint_path, classes_path, top_k: int = 0,
     classes = load_classes(classes_path)
     if classes != ckpt_classes:
         raise ValueError("classes.json does not match checkpoint classes")
-    from PIL import Image
     tf = build_transforms(image_size, train=False)
     with Image.open(image_path) as img:
         tensor = tf(img.convert("RGB")).unsqueeze(0)
