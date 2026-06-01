@@ -1,6 +1,7 @@
 # CPU/edge target: pull CPU-only torch to avoid ~5GB of CUDA wheels.
 # Install with:  pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
 torch>=2.2
+torchvision>=0.17
 timm>=1.0.7
 onnx>=1.16
 onnxruntime>=1.18

@@ -35,3 +35,54 @@ def stratified_split(data_dir, classes, val_split: float, seed: int):
     train = list(zip(train_p, train_l))
     val = list(zip(val_p, val_l))
     return train, val
+
+
+import json
+
+import torch
+from PIL import Image
+from torch.utils.data import Dataset
+from torchvision import transforms
+
+_MEAN = (0.485, 0.456, 0.406)
+_STD = (0.229, 0.224, 0.225)
+
+
+def build_transforms(image_size: int, train: bool):
+    if train:
+        return transforms.Compose([
+            transforms.Resize((image_size, image_size)),
+            transforms.RandomHorizontalFlip(),
+            transforms.ColorJitter(0.2, 0.2, 0.2, 0.05),
+            transforms.ToTensor(),
+            transforms.Normalize(_MEAN, _STD),
+            transforms.RandomErasing(p=0.25),
+        ])
+    return transforms.Compose([
+        transforms.Resize((image_size, image_size)),
+        transforms.ToTensor(),
+        transforms.Normalize(_MEAN, _STD),
+    ])
+
+
+class KoiDataset(Dataset):
+    def __init__(self, samples, transform):
+        self.samples = samples
+        self.transform = transform
+
+    def __len__(self) -> int:
+        return len(self.samples)
+
+    def __getitem__(self, idx: int):
+        path, label = self.samples[idx]
+        with Image.open(path) as img:
+            image = self.transform(img.convert("RGB"))
+        return image, label
+
+
+def save_classes(classes, path) -> None:
+    Path(path).write_text(json.dumps(classes))
+
+
+def load_classes(path) -> list[str]:
+    return json.loads(Path(path).read_text())
