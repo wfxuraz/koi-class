@@ -9,7 +9,8 @@ label_smoothing: 0.1
 val_split: 0.2
 seed: 42
 num_workers: 4
-patience: 5                     # early-stopping epochs without val-acc improvement
+patience: 5                     # early-stopping epochs without val macro-F1 improvement
+cb_beta: 0.999                  # class-balanced loss beta (Cui et al. 2019); 0 disables weighting
 output_dir: runs
 top_k: 0                        # 0 = show all classes; N>0 = show top N
 min_prob: 0.0                   # only show classes with prob >= this (0.0 = no filter)
