@@ -24,6 +24,20 @@ data/
   sanke/          *.jpg
 ```
 
+## Check for duplicates (optional, before training)
+
+Find near-duplicate images within each breed (perceptual hash + Hamming
+threshold) and copy them out for review — originals are left untouched:
+
+```bash
+python -m koi.dedup --config config.yaml --out duplicate --threshold 3
+```
+
+Matching groups are copied to `duplicate/<breed>/<NNNNN>_dup_<II>_<name>.<ext>`.
+`--threshold 0` matches only pixel-identical re-encodes; higher values catch
+resized/recompressed copies but over-group low-texture breeds (e.g. solid-colour
+Muji), so review the output and tune per dataset.
+
 ## Train
 
 ```bash
