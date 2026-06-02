@@ -46,6 +46,7 @@ python -m koi.dedup --config config.yaml --threshold 3 --apply
 ```
 
 Without `--apply` the command is a dry run — it only copies, never deletes.
+See [docs/dedup.md](docs/dedup.md) for the full pipeline, options, and workflow.
 
 ## Train
 
