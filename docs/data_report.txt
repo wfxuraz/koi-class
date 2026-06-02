@@ -1,0 +1,106 @@
+================================================================================
+KOI BREED CLASSIFIER — TRAINING DATA REPORT
+================================================================================
+Date:        2026-06-02
+Data path:   /mnt/c/Users/s_dhakal/Documents/koi-breed/data/
+Scanned by:  PIL verify() over all files (read from Windows mount via WSL)
+
+--------------------------------------------------------------------------------
+1. SUMMARY
+--------------------------------------------------------------------------------
+- Total files in tree:        31,404
+- Valid training images:      31,380  (all .jpg)
+- Non-image files:                24  (.xlsx, all inside _bk/)
+- Image color modes:          RGB only (31,380 / 31,380)
+- Corrupt / truncated images: 0
+- Breed class directories:    22 (excluding _bk)
+
+Verdict: image data is CLEAN. No corruption, no odd color modes.
+
+--------------------------------------------------------------------------------
+2. DO I NEED TO NORMALIZE THE DATA?
+--------------------------------------------------------------------------------
+NO. Normalization and resizing are handled in code, not in the files.
+
+koi/data.py -> build_transforms():
+  - Resize((image_size, image_size))            # 224x224 from config.yaml
+  - ToTensor()
+  - Normalize(mean=(0.485,0.456,0.406),
+              std =(0.229,0.224,0.225))          # ImageNet stats
+  Train-only augmentation: RandomHorizontalFlip, ColorJitter, RandomErasing.
+
+Do NOT pre-normalize or pre-resize pixels — it would be applied twice.
+Mixed source dimensions are fine; the transform standardizes them.
+
+--------------------------------------------------------------------------------
+3. PER-CLASS IMAGE COUNTS (sorted high -> low)
+--------------------------------------------------------------------------------
+  Kohaku             5220
+  Showa-sanshoku     3393
+  Taisho-sanshoku    3383
+  A-ginrin           2335
+  Kawarigoi          1822
+  Goshiki            1683
+  Tancho             1618
+  Doitsugoi          1491
+  Shiroutsuri        1424
+  B-ginrin           1284
+  Koromo             1036
+  Kujaku             1015
+  Hikari-utsuri       908
+  Hikari-moyo         834
+  Shusui              790
+  Kumonryu            663
+  Hikari-muji         632
+  Asagi               557
+  Hiutsuri            469
+  Bekko               412
+  Muji                391
+  Kiutsuri             20    <-- TOO FEW
+  --------------------------------
+  _bk                  24    <-- NOT a breed: 24 .xlsx files (bookkeeping)
+
+  Total breed images: 31,380
+  Imbalance ratio (max/min, real classes): 5220 / 20 = 261:1
+
+--------------------------------------------------------------------------------
+4. ACTION ITEMS BEFORE TRAINING
+--------------------------------------------------------------------------------
+[REQUIRED] Move _bk out of the data directory.
+  discover_classes() treats every subdir as a class. _bk contains only .xlsx,
+  so it would become a 23rd class with 0 images: a dead output neuron and a
+  polluted classes.json.
+    mv "/mnt/c/Users/s_dhakal/Documents/koi-breed/data/_bk" \
+       "/mnt/c/Users/s_dhakal/Documents/koi-breed/_bk"
+
+[IMPORTANT] Decide what to do about Kiutsuri (20 images).
+  With val_split=0.2 -> ~16 train / 4 val. The model cannot learn it and its
+  accuracy will be pure noise. Options:
+    (a) collect more Kiutsuri images,
+    (b) drop the class, or
+    (c) merge it into a related class (Kiutsuri = yellow Utsuri).
+
+[IMPORTANT] Handle overall class imbalance (261:1).
+  train.py currently uses plain CrossEntropyLoss with shuffled sampling and NO
+  class weighting -> majority breeds (Kohaku, Showa, Taisho) are favored.
+  Recommended fix (code change, not data change):
+    - class-weighted CrossEntropyLoss, or
+    - torch.utils.data.WeightedRandomSampler.
+
+[OPTIONAL] Check for duplicate images.
+  Scraped koi photos often contain exact duplicates. If the same image lands in
+  both train and val it inflates reported accuracy (data leakage).
+  A hash-based dedup check is recommended.
+
+[OPTIONAL / PERFORMANCE] Pre-resize for faster I/O.
+  Reading from /mnt/c (Windows mount) in WSL is very slow. On Colab the data is
+  copied into the VM / Drive anyway. Pre-resizing to ~256px shrinks the dataset
+  and speeds up training I/O. This is a speed optimization only — not required
+  for correctness, since transforms already resize.
+
+--------------------------------------------------------------------------------
+5. BOTTOM LINE
+--------------------------------------------------------------------------------
+Nothing to normalize — the code does it. Data is clean.
+Before training: (1) move _bk, (2) make a call on Kiutsuri / imbalance.
+================================================================================

@@ -6,6 +6,8 @@ import torch
 from koi.data import (
     KoiDataset,
     build_transforms,
+    class_balanced_weights,
+    class_counts,
     discover_classes,
     load_classes,
     save_classes,
@@ -46,6 +48,31 @@ def test_build_transforms_outputs_tensor_of_right_size(synthetic_dataset: Path):
     assert isinstance(image, torch.Tensor)
     assert image.shape == (3, 96, 96)
     assert isinstance(label, int)
+
+
+def test_class_counts(synthetic_dataset: Path):
+    classes = discover_classes(synthetic_dataset)
+    train, val = stratified_split(synthetic_dataset, classes, 0.4, 0)
+    counts = class_counts(train + val, len(classes))
+    assert sum(counts) == 17  # 6 + 6 + 5
+    assert len(counts) == 3
+
+
+def test_class_balanced_weights_favor_rare_classes():
+    # class 0 is rare, class 1 is common -> rare gets the larger weight
+    weights = class_balanced_weights([10, 1000])
+    assert weights[0] > weights[1]
+
+
+def test_class_balanced_weights_equal_counts_are_uniform():
+    weights = class_balanced_weights([100, 100, 100])
+    assert all(abs(w - 1.0) < 1e-6 for w in weights)  # normalized to mean 1.0
+
+
+def test_class_balanced_weights_empty_class_gets_zero():
+    weights = class_balanced_weights([0, 50])
+    assert weights[0] == 0.0
+    assert weights[1] > 0.0
 
 
 def test_save_and_load_classes_roundtrip(tmp_path: Path):

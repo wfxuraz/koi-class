@@ -78,6 +78,31 @@ class KoiDataset(Dataset):
         return image, label
 
 
+def class_counts(samples, num_classes: int) -> list[int]:
+    counts = [0] * num_classes
+    for _, label in samples:
+        counts[label] += 1
+    return counts
+
+
+def class_balanced_weights(counts, beta: float = 0.999) -> list[float]:
+    """Class-balanced loss weights from the effective number of samples.
+
+    Cui et al., "Class-Balanced Loss Based on Effective Number of Samples"
+    (CVPR 2019): weight_c = (1 - beta) / (1 - beta**n_c). Empty classes get
+    weight 0. Weights are normalized so the non-empty ones average to 1.0,
+    keeping the loss scale comparable to the unweighted case.
+    """
+    weights = [
+        (1.0 - beta) / (1.0 - beta ** n) if n > 0 else 0.0 for n in counts
+    ]
+    total = sum(weights)
+    nonzero = sum(1 for w in weights if w > 0)
+    if total > 0:
+        weights = [w * nonzero / total for w in weights]
+    return weights
+
+
 def save_classes(classes, path) -> None:
     Path(path).write_text(json.dumps(classes))
 

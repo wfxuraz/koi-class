@@ -17,6 +17,7 @@ _DEFAULTS = {
     "seed": 42,
     "num_workers": 4,
     "patience": 5,
+    "cb_beta": 0.999,
     "output_dir": "runs",
     "top_k": 0,
     "min_prob": 0.0,
@@ -37,6 +38,7 @@ class Config:
     seed: int
     num_workers: int
     patience: int
+    cb_beta: float
     output_dir: str
     top_k: int
     min_prob: float
@@ -57,4 +59,6 @@ def load_config(path: Union[str, Path]) -> Config:
         raise ValueError(f"val_split must be in (0, 1), got {cfg.val_split}")
     if cfg.image_size <= 0:
         raise ValueError(f"image_size must be positive, got {cfg.image_size}")
+    if not 0.0 <= cfg.cb_beta < 1.0:
+        raise ValueError(f"cb_beta must be in [0, 1), got {cfg.cb_beta}")
     return cfg
