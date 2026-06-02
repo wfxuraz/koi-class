@@ -1,5 +1,7 @@
 # Koi Breed Classifier
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/wfxuraz/koi-class/blob/main/colab.ipynb)
+
 Apache-2.0 timm classifier for koi breeds. Input = one koi per image. Output =
 breeds sorted high→low with percentages.
 
