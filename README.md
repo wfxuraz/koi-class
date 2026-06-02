@@ -38,6 +38,15 @@ Matching groups are copied to `duplicate/<breed>/<NNNNN>_dup_<II>_<name>.<ext>`.
 resized/recompressed copies but over-group low-texture breeds (e.g. solid-colour
 Muji), so review the output and tune per dataset.
 
+After reviewing, prune the dataset (keeps one image per group, deletes the rest;
+the copies in `duplicate/` remain as a backup):
+
+```bash
+python -m koi.dedup --config config.yaml --threshold 3 --apply
+```
+
+Without `--apply` the command is a dry run — it only copies, never deletes.
+
 ## Train
 
 ```bash

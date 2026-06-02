@@ -61,6 +61,25 @@ def test_run_copies_with_expected_naming(dup_dataset: Path, tmp_path: Path):
     assert len(list((dup_dataset / "kohaku").iterdir())) == 3
 
 
+def test_apply_removes_extras_keeps_one(dup_dataset: Path, tmp_path: Path):
+    out = tmp_path / "duplicate"
+    kdir = dup_dataset / "kohaku"
+    summary = DuplicateFinder(dup_dataset, output_dir=out).run(apply=True)
+
+    assert summary["removed"] == 1                   # group of 2 -> drop 1
+    remaining = sorted(p.name for p in kdir.iterdir())
+    assert remaining == ["a.jpg", "b.jpg"]           # kept first of group + distinct
+    # the whole group is still backed up in duplicate/
+    assert len(list((out / "kohaku").iterdir())) == 2
+
+
+def test_run_without_apply_keeps_all(dup_dataset: Path, tmp_path: Path):
+    kdir = dup_dataset / "kohaku"
+    summary = DuplicateFinder(dup_dataset, output_dir=tmp_path / "dup").run()
+    assert summary["removed"] == 0
+    assert len(list(kdir.iterdir())) == 3            # nothing deleted
+
+
 def test_threshold_zero_only_exact_matches(dup_dataset: Path):
     dups = DuplicateFinder(dup_dataset, threshold=0).find_duplicates()
     # identical re-encodes still hash the same -> still grouped

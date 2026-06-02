@@ -112,13 +112,30 @@ class DuplicateFinder:
                     copied += 1
         return copied
 
-    def run(self) -> dict:
+    def remove_extras(self, duplicates: dict) -> int:
+        """Delete all but the first image of each duplicate group from the
+        dataset, keeping one representative. Returns the number deleted.
+
+        Run copy_duplicates first so output_dir holds a backup of everything
+        before anything is removed.
+        """
+        removed = 0
+        for groups in duplicates.values():
+            for group in groups:
+                for src in group[1:]:
+                    Path(src).unlink()
+                    removed += 1
+        return removed
+
+    def run(self, apply: bool = False) -> dict:
         duplicates = self.find_duplicates()
         copied = self.copy_duplicates(duplicates)
+        removed = self.remove_extras(duplicates) if apply else 0
         return {
             "groups": sum(len(g) for g in duplicates.values()),
             "duplicate_images": sum(len(grp) for g in duplicates.values() for grp in g),
             "copied": copied,
+            "removed": removed,
             "by_breed": {b: len(g) for b, g in duplicates.items()},
             "output_dir": str(self.output_dir),
         }
@@ -134,17 +151,25 @@ def main() -> None:
                         help="max Hamming distance to treat images as the same "
                              "(0=identical only; higher over-groups low-texture breeds)")
     parser.add_argument("--hash-size", type=int, default=8)
+    parser.add_argument("--apply", action="store_true",
+                        help="delete all but one image per group from the dataset "
+                             "(copies in --out remain as a backup); default is dry-run")
     args = parser.parse_args()
 
     data_dir = args.data_dir or load_config(args.config).data_dir
     finder = DuplicateFinder(data_dir, args.out, args.hash_size, args.threshold)
-    summary = finder.run()
+    summary = finder.run(apply=args.apply)
 
     print(f"data_dir:   {data_dir}")
     print(f"groups:     {summary['groups']}")
     print(f"duplicates: {summary['duplicate_images']} images copied to {summary['output_dir']}")
     for breed, n in sorted(summary["by_breed"].items(), key=lambda x: -x[1]):
         print(f"  {breed:20s} {n} group(s)")
+    if args.apply:
+        print(f"removed:    {summary['removed']} duplicate images from {data_dir} "
+              f"(kept 1 per group)")
+    else:
+        print("(dry run — pass --apply to remove extras from the dataset)")
 
 
 if __name__ == "__main__":
