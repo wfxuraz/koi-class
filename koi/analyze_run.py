@@ -34,6 +34,8 @@ COUNT_RE = re.compile(r"^\|\s*([A-Za-z-]+)\s*\|\s*(\d+)\s*\|")
 
 def parse_log(log_path: Path):
     """Return list of {epoch, total, f1, acc} and Counter of weak-class appearances."""
+    if not log_path.exists():  # e.g. local runs that only wrote metrics.csv
+        return [], Counter(), None
     text = log_path.read_text(errors="replace")
     epochs, weak = [], Counter()
     lines = text.splitlines()
@@ -186,6 +188,93 @@ def sanity_check(run_dir: Path):
     return result
 
 
+def read_metrics_csv(path: Path):
+    """Read metrics.csv (epoch, train_loss, val_loss, macro_f1, accuracy) if present.
+
+    Newer runs write this file directly from train.py, giving us loss curves the
+    text log never captured. Returns None when the file is absent (older runs).
+    """
+    import csv
+
+    if not path.exists():
+        return None
+    rows = []
+    with open(path, newline="") as f:
+        for r in csv.DictReader(f):
+            rows.append({k: float(v) if v not in ("", None) else None
+                         for k, v in r.items()})
+    return rows or None
+
+
+def make_dashboard(run: Path, epochs, counts, csv_rows, out: Path):
+    """One combined figure: loss, accuracy/F1, class distribution, confusion matrix."""
+    fig, axes = plt.subplots(2, 2, figsize=(16, 11))
+    ax_loss, ax_acc, ax_dist, ax_cm = axes.ravel()
+
+    # --- loss (needs metrics.csv) ---
+    if csv_rows and any(r.get("train_loss") is not None for r in csv_rows):
+        xs = [r["epoch"] for r in csv_rows]
+        ax_loss.plot(xs, [r["train_loss"] for r in csv_rows], "o-", label="train loss")
+        if any(r.get("val_loss") is not None for r in csv_rows):
+            ax_loss.plot(xs, [r["val_loss"] for r in csv_rows], "s-", label="val loss")
+        ax_loss.set_xlabel("epoch"); ax_loss.set_ylabel("loss")
+        ax_loss.set_title("Loss per epoch"); ax_loss.grid(alpha=0.3); ax_loss.legend()
+    else:
+        ax_loss.text(0.5, 0.5, "loss not recorded in this run\n"
+                     "(re-run training with the updated koi.train\n"
+                     "to capture train/val loss in metrics.csv)",
+                     ha="center", va="center", fontsize=11, color="gray")
+        ax_loss.set_title("Loss per epoch"); ax_loss.axis("off")
+
+    # --- accuracy + macro-F1 (csv preferred, else parsed log) ---
+    if csv_rows:
+        xs = [r["epoch"] for r in csv_rows]
+        f1 = [r["macro_f1"] for r in csv_rows]
+        acc = [r["accuracy"] for r in csv_rows]
+    else:
+        xs = [e["epoch"] for e in epochs]
+        f1 = [e["f1"] for e in epochs]
+        acc = [e["acc"] for e in epochs]
+    if xs:
+        ax_acc.plot(xs, f1, "o-", label="macro-F1", color="#1f77b4")
+        ax_acc.plot(xs, acc, "s-", label="accuracy", color="#ff7f0e")
+        best_ep = xs[int(np.argmax(f1))]
+        ax_acc.axvline(best_ep, ls="--", color="green", alpha=0.6,
+                       label=f"best (epoch {best_ep})")
+        ax_acc.set_ylim(min(f1 + acc) - 0.02, 1.0); ax_acc.grid(alpha=0.3)
+    ax_acc.set_xlabel("epoch"); ax_acc.set_ylabel("score")
+    ax_acc.set_title("Accuracy & macro-F1 per epoch"); ax_acc.legend()
+
+    # --- class distribution ---
+    if counts:
+        items = sorted(counts.items(), key=lambda x: x[1], reverse=True)
+        names = [k for k, _ in items]; vals = [v for _, v in items]
+        bars = ax_dist.bar(names, vals, color="#4c72b0"); bars[-1].set_color("#c44e52")
+        ax_dist.set_yscale("log"); ax_dist.set_ylabel("images (log)")
+        ax_dist.tick_params(axis="x", rotation=90, labelsize=6)
+        ax_dist.set_title(f"Class distribution ({len(counts)} breeds, "
+                          f"{max(vals)//max(min(vals),1)}:1)")
+    else:
+        ax_dist.axis("off"); ax_dist.set_title("Class distribution")
+
+    # --- confusion matrix (embed PNG from koi.evaluate if present) ---
+    cm_png = out / "confusion_matrix.png"
+    if cm_png.exists():
+        ax_cm.imshow(plt.imread(str(cm_png))); ax_cm.axis("off")
+        ax_cm.set_title("Confusion matrix (val split)")
+    else:
+        ax_cm.text(0.5, 0.5, "confusion matrix not available\n"
+                   "run:  python -m koi.evaluate --run-dir <dir>\n"
+                   "(needs the dataset present)",
+                   ha="center", va="center", fontsize=11, color="gray")
+        ax_cm.set_title("Confusion matrix (test/val)"); ax_cm.axis("off")
+
+    fig.suptitle("Koi Breed Classifier — training dashboard", fontsize=15)
+    fig.tight_layout(rect=[0, 0, 1, 0.98])
+    fig.savefig(out / "dashboard.png", dpi=130)
+    plt.close(fig)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--run-dir", default="koi-breed/runs")
@@ -196,12 +285,15 @@ def main():
 
     epochs, weak, best = parse_log(run / "train.log")
     counts = parse_counts(run / "report.md")
+    csv_rows = read_metrics_csv(run / "metrics.csv")
 
     plot_curves(epochs, best, out / "training_curves.png")
     plot_distribution(counts, out / "class_distribution.png")
     plot_weak(weak, out / "lowest_recall.png")
+    make_dashboard(run, epochs, counts, csv_rows, out)
 
-    print(f"parsed {len(epochs)} epochs, {len(counts)} classes")
+    src = "metrics.csv" if csv_rows else "train.log"
+    print(f"parsed {len(csv_rows or epochs)} epochs from {src}, {len(counts)} classes")
     health = sanity_check(run)
     health["best"] = best
     (out / "health.json").write_text(json.dumps(health, indent=2))
