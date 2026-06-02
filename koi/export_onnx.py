@@ -16,7 +16,25 @@ def export(checkpoint_path, onnx_path) -> str:
         dynamic_axes={"input": {0: "batch"}, "logits": {0: "batch"}},
         opset_version=17,
     )
+    _inline_external_data(onnx_path)
     return str(onnx_path)
+
+
+def _inline_external_data(onnx_path) -> None:
+    """Collapse the model into a single self-contained .onnx file.
+
+    On torch >= 2.6 the dynamo exporter writes weights to a sidecar
+    `<name>.onnx.data` by default. If only the .onnx is copied elsewhere the
+    model is unusable, so we load the weights back in and re-save inline, then
+    delete the sidecar. The model (~90 MB) is well under the 2 GB protobuf limit.
+    """
+    import onnx
+
+    path = Path(onnx_path)
+    model = onnx.load(str(path))  # pulls in any external data sidecar
+    onnx.save_model(model, str(path), save_as_external_data=False)
+    for sidecar in path.parent.glob(path.name + ".data"):
+        sidecar.unlink()
 
 
 def main() -> None:
