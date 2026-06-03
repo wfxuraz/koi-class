@@ -51,12 +51,17 @@ class DuplicateFinder:
     # catches resized/recompressed copies. Higher values over-group low-texture
     # breeds (e.g. solid-colour Muji), so review the output and tune per dataset.
     def __init__(self, data_dir, output_dir="duplicate", hash_size: int = 8,
-                 threshold: int = 3, hash_fn=dhash_bits):
+                 threshold: int = 3, hash_fn=dhash_bits, verbose: bool = False):
         self.data_dir = Path(data_dir)
         self.output_dir = Path(output_dir)
         self.hash_size = hash_size
         self.threshold = threshold
         self.hash_fn = hash_fn
+        self.verbose = verbose
+
+    def _log(self, msg: str, end: str = "\n") -> None:
+        if self.verbose:
+            print(msg, end=end, flush=True)
 
     def _class_dirs(self):
         return sorted(p for p in self.data_dir.iterdir() if p.is_dir())
@@ -67,9 +72,14 @@ class DuplicateFinder:
 
     def _hashes(self, paths) -> np.ndarray:
         rows = []
-        for p in paths:
+        total = len(paths)
+        for i, p in enumerate(paths, start=1):
             with Image.open(p) as im:
                 rows.append(self.hash_fn(im, self.hash_size))
+            if self.verbose and (i % 500 == 0 or i == total):
+                self._log(f"\r    hashing {i}/{total}", end="")
+        if self.verbose:
+            self._log("")  # newline after the progress line
         return np.array(rows, dtype=bool)
 
     def _group(self, bits: np.ndarray):
@@ -98,13 +108,17 @@ class DuplicateFinder:
     def find_duplicates(self) -> dict:
         """Return {breed: [[Path, ...] per duplicate group]} (groups of >= 2)."""
         result = {}
-        for class_dir in self._class_dirs():
+        class_dirs = self._class_dirs()
+        for n, class_dir in enumerate(class_dirs, start=1):
             paths = self._images(class_dir)
+            self._log(f"[{n}/{len(class_dirs)}] {class_dir.name}: {len(paths)} images")
             if len(paths) < 2:
                 continue
             bits = self._hashes(paths)
             groups = [[paths[i] for i in idx] for idx in self._group(bits)]
             if groups:
+                dup_imgs = sum(len(g) for g in groups)
+                self._log(f"    -> {len(groups)} duplicate group(s), {dup_imgs} images")
                 result[class_dir.name] = groups
         return result
 
@@ -145,7 +159,11 @@ class DuplicateFinder:
 
     def run(self, apply: bool = False) -> dict:
         duplicates = self.find_duplicates()
+        self._log(f"copying {sum(len(grp) for g in duplicates.values() for grp in g)} "
+                  f"images to {self.output_dir} ...")
         copied = self.copy_duplicates(duplicates)
+        if apply:
+            self._log("removing extras (keeping 1 per group) ...")
         removed = self.remove_extras(duplicates) if apply else 0
         return {
             "groups": sum(len(g) for g in duplicates.values()),
@@ -170,10 +188,13 @@ def main() -> None:
     parser.add_argument("--apply", action="store_true",
                         help="delete all but one image per group from the dataset "
                              "(copies in --out remain as a backup); default is dry-run")
+    parser.add_argument("-v", "--verbose", action="store_true",
+                        help="print per-breed progress while scanning")
     args = parser.parse_args()
 
     data_dir = args.data_dir or load_config(args.config).data_dir
-    finder = DuplicateFinder(data_dir, args.out, args.hash_size, args.threshold)
+    finder = DuplicateFinder(data_dir, args.out, args.hash_size, args.threshold,
+                             verbose=args.verbose)
     summary = finder.run(apply=args.apply)
 
     print(f"data_dir:   {data_dir}")

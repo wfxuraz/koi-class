@@ -39,6 +39,16 @@ python -m koi.dedup --config config.yaml --threshold 3 --apply
 `--config` supplies the dataset location via its `data_dir`. To point at a
 different folder directly, use `--data-dir /path/to/data` (overrides the config).
 
+Add `-v`/`--verbose` to watch progress as it scans each breed (handy for large
+datasets or slow disks):
+
+```bash
+python -m koi.dedup --data-dir /path/to/data --threshold 3 -v
+# [4/22] Bekko: 412 images
+#     hashing 412/412
+#     -> 17 duplicate group(s), 40 images
+```
+
 ## Output layout
 
 Matching groups are copied here (originals are left in place):
@@ -71,6 +81,7 @@ duplicate/
 | `--threshold` | `3` | Max Hamming distance to call two images the same. `0` = pixel-identical only; higher = looser. |
 | `--hash-size` | `8` | Hash grid size; `8` → a 64-bit hash. |
 | `--apply` | off | Delete all but one image per group from the dataset. Without it the run is a copy-only dry run. |
+| `-v`, `--verbose` | off | Print per-breed progress (image counts, hashing progress, groups found) while scanning. |
 
 ## Choosing a threshold
 
