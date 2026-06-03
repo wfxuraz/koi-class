@@ -18,19 +18,24 @@ from koi.data import (
 from koi.model import build_model
 
 
-def _evaluate(model, loader, device, num_classes: int) -> dict:
-    """Return macro-F1, accuracy, and per-class recall on the loader."""
+def _evaluate(model, loader, device, num_classes: int, criterion=None) -> dict:
+    """Return macro-F1, accuracy, per-class recall, and (if criterion) val loss."""
     model.eval()
     all_preds: list[int] = []
     all_labels: list[int] = []
+    loss_sum = 0.0
     with torch.no_grad():
         for images, labels in loader:
             images = images.to(device)
-            preds = model(images).argmax(dim=1)
+            logits = model(images)
+            if criterion is not None:
+                loss_sum += criterion(logits, labels.to(device)).item() * len(labels)
+            preds = logits.argmax(dim=1)
             all_preds.extend(preds.cpu().tolist())
             all_labels.extend(labels.tolist())
     if not all_labels:
-        return {"macro_f1": 0.0, "accuracy": 0.0, "recall": [0.0] * num_classes}
+        return {"macro_f1": 0.0, "accuracy": 0.0, "recall": [0.0] * num_classes,
+                "loss": 0.0}
     labels_range = list(range(num_classes))
     macro_f1 = f1_score(all_labels, all_preds, labels=labels_range,
                         average="macro", zero_division=0)
@@ -38,7 +43,19 @@ def _evaluate(model, loader, device, num_classes: int) -> dict:
                           average=None, zero_division=0)
     correct = sum(int(p == t) for p, t in zip(all_preds, all_labels))
     return {"macro_f1": float(macro_f1), "accuracy": correct / len(all_labels),
-            "recall": [float(r) for r in recall]}
+            "recall": [float(r) for r in recall],
+            "loss": loss_sum / len(all_labels)}
+
+
+def _write_metrics(path, history) -> None:
+    """Write the per-epoch metric history to a CSV (rewritten each epoch)."""
+    import csv
+
+    fields = ["epoch", "train_loss", "val_loss", "macro_f1", "accuracy"]
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(history)
 
 
 def train(cfg, pretrained: bool = True) -> dict:
@@ -69,11 +86,15 @@ def train(cfg, pretrained: bool = True) -> dict:
                                           label_smoothing=cfg.label_smoothing)
 
     ckpt_path = out_dir / "best_model.pt"
+    metrics_path = out_dir / "metrics.csv"
+    history: list[dict] = []
     best_f1 = -1.0
     best_acc = 0.0
     epochs_no_improve = 0
     for epoch in range(cfg.epochs):
         model.train()
+        train_loss_sum = 0.0
+        train_n = 0
         for images, labels in train_loader:
             images = images.to(device)
             labels = labels.to(device)
@@ -81,9 +102,17 @@ def train(cfg, pretrained: bool = True) -> dict:
             loss = criterion(model(images), labels)
             loss.backward()
             optimizer.step()
-        metrics = _evaluate(model, val_loader, device, len(classes))
+            train_loss_sum += loss.item() * len(labels)
+            train_n += len(labels)
+        train_loss = train_loss_sum / max(train_n, 1)
+        metrics = _evaluate(model, val_loader, device, len(classes), criterion)
         print(f"epoch {epoch + 1}/{cfg.epochs}  "
+              f"train_loss={train_loss:.4f}  val_loss={metrics['loss']:.4f}  "
               f"macro_f1={metrics['macro_f1']:.4f}  acc={metrics['accuracy']:.4f}")
+        history.append({"epoch": epoch + 1, "train_loss": train_loss,
+                        "val_loss": metrics["loss"], "macro_f1": metrics["macro_f1"],
+                        "accuracy": metrics["accuracy"]})
+        _write_metrics(metrics_path, history)
         worst = sorted(zip(classes, metrics["recall"]), key=lambda x: x[1])[:5]
         print("  lowest-recall classes: "
               + ", ".join(f"{name}={r:.2f}" for name, r in worst))
