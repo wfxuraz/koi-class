@@ -4,7 +4,13 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from koi.dedup import DuplicateFinder, dhash_bits
+from koi.dedup import DuplicateFinder, _letter, dhash_bits
+
+
+def test_letter_labels():
+    assert [_letter(n) for n in (1, 2, 3, 26)] == ["A", "B", "C", "Z"]
+    assert _letter(27) == "AA"
+    assert _letter(28) == "AB"
 
 
 def _save(path: Path, arr: np.ndarray) -> None:
@@ -55,7 +61,7 @@ def test_run_copies_with_expected_naming(dup_dataset: Path, tmp_path: Path):
     assert summary["copied"] == 2
 
     copied = sorted(p.name for p in (out / "kohaku").iterdir())
-    assert copied == ["00001_dup_01_a.jpg", "00001_dup_02_a_copy.jpg"]
+    assert copied == ["00001_A_a.jpg", "00001_B_a_copy.jpg"]
     # originals untouched
     assert (dup_dataset / "kohaku" / "a.jpg").exists()
     assert len(list((dup_dataset / "kohaku").iterdir())) == 3

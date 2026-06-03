@@ -6,9 +6,10 @@ slightly edited copies are caught — not just byte-identical files.
 
 Matching groups are copied (originals are left untouched) into:
 
-    <output_dir>/<breed>/<NNNNN>_dup_<II>_<originalname>.<ext>
+    <output_dir>/<breed>/<NNNNN>_<L>_<originalname>.<ext>
 
-where NNNNN is the per-breed group number and II is the index within the group.
+where NNNNN is the per-breed group number and L is the member letter (A, B,
+C, ...), so images in the same duplicate set share a number and differ by letter.
 """
 import argparse
 import shutil
@@ -33,6 +34,15 @@ def dhash_bits(image: Image.Image, hash_size: int = 8) -> np.ndarray:
     img = image.convert("L").resize((hash_size + 1, hash_size))
     arr = np.asarray(img, dtype=np.int16)
     return (arr[:, 1:] > arr[:, :-1]).flatten()
+
+
+def _letter(n: int) -> str:
+    """1->A, 2->B, ..., 26->Z, 27->AA, 28->AB, ... (Excel-style labels)."""
+    label = ""
+    while n > 0:
+        n, rem = divmod(n - 1, 26)
+        label = chr(ord("A") + rem) + label
+    return label
 
 
 class DuplicateFinder:
@@ -100,14 +110,20 @@ class DuplicateFinder:
 
     def copy_duplicates(self, duplicates: dict) -> int:
         """Copy every member of every duplicate group into output_dir. Returns
-        the number of files copied. Originals are not modified."""
+        the number of files copied. Originals are not modified.
+
+        Files are named <NNNNN>_<L>_<originalname>.<ext>, where NNNNN is the
+        per-breed group number and L is the member letter (A, B, C, ... and
+        AA, AB, ... past 26), so one duplicate set shares a number and differs
+        only by letter.
+        """
         copied = 0
         for breed, groups in duplicates.items():
             out_class = self.output_dir / breed
             out_class.mkdir(parents=True, exist_ok=True)
             for gnum, group in enumerate(groups, start=1):
                 for dnum, src in enumerate(group, start=1):
-                    dst = out_class / f"{gnum:05d}_dup_{dnum:02d}_{src.stem}{src.suffix}"
+                    dst = out_class / f"{gnum:05d}_{_letter(dnum)}_{src.stem}{src.suffix}"
                     shutil.copy2(src, dst)
                     copied += 1
         return copied

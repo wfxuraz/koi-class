@@ -46,18 +46,19 @@ Matching groups are copied here (originals are left in place):
 ```
 duplicate/
   Kohaku/
-    00001_dup_01_<imagename>.jpg
-    00001_dup_02_<imagename>.jpg
-    00002_dup_01_<imagename>.jpg
-    00002_dup_02_<imagename>.jpg
-    00002_dup_03_<imagename>.jpg
+    00001_A_<imagename>.jpg
+    00001_B_<imagename>.jpg
+    00002_A_<imagename>.jpg
+    00002_B_<imagename>.jpg
+    00002_C_<imagename>.jpg
   Bekko/
-    00001_dup_01_<imagename>.jpg
+    00001_A_<imagename>.jpg
     ...
 ```
 
-- `NNNNN` — duplicate-group number, per breed (`00001`, `00002`, …).
-- `dup_II` — index of the image within its group (`01`, `02`, …).
+- `NNNNN` — duplicate-group number, per breed (`00001`, `00002`, …). All images
+  in one duplicate set share this number.
+- `L` — member letter within the set (`A`, `B`, `C`, … and `AA`, `AB`, … past 26).
 - `<imagename>.<ext>` — the original filename.
 
 ## Options
